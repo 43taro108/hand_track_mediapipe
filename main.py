@@ -19,13 +19,6 @@ st.title("MediaPipe Hands 3D Visualization")
 uploaded_file = st.file_uploader("🎥 Upload a video file (.mp4, .mov, .avi)", type=["mp4", "mov", "avi"])
 
 if uploaded_file:
-    both_hands = st.checkbox("Enable both-hand detection", value=False)
-    hand_choice = "Right"
-    if not both_hands:
-        hand_choice = st.radio("Which hand to extract?", ["Right", "Left"], horizontal=True)
-
-    max_hands = 2 if both_hands else 1
-
     tfile = tempfile.NamedTemporaryFile(delete=False)
     tfile.write(uploaded_file.read())
     video_path = tfile.name
@@ -48,21 +41,18 @@ if uploaded_file:
 
     if st.button("Process this frame"):
         mp_hands = mp.solutions.hands
-        hands = mp_hands.Hands(static_image_mode=True, max_num_hands=max_hands)
+        hands = mp_hands.Hands(static_image_mode=True, max_num_hands=2)
         image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         results = hands.process(image_rgb)
         hands.close()
 
         if results.multi_hand_landmarks:
             for idx, (hand_landmarks, handedness) in enumerate(zip(results.multi_hand_landmarks, results.multi_handedness)):
-                raw_label = handedness.classification[0].label  # MediaPipe label
-                # Reverse label for user perspective
-                label = "Right" if raw_label == "Left" else "Left"
+                mp_label = handedness.classification[0].label  # 'Left' or 'Right'
+                # Flip label to match user perspective (camera-facing)
+                user_label = "Right" if mp_label == "Left" else "Left"
 
-                if not both_hands and label != hand_choice:
-                    continue
-
-                st.subheader(f"Hand {idx+1} ({label})")
+                st.subheader(f"Hand {idx+1} ({user_label})")
                 coords = np.array([[lm.x, lm.y, lm.z] for lm in hand_landmarks.landmark])
                 df = pd.DataFrame(coords, columns=['x', 'y', 'z'])
 
@@ -90,9 +80,9 @@ if uploaded_file:
                 st.dataframe(df)
                 csv = df.to_csv(index=False).encode("utf-8")
                 st.download_button(
-                    label=f"Download CSV for {label} Hand",
+                    label=f"Download CSV for {user_label} Hand",
                     data=csv,
-                    file_name=f"{label.lower()}_hand_frame_{frame_idx}.csv",
+                    file_name=f"{user_label.lower()}_hand_frame_{frame_idx}.csv",
                     mime="text/csv"
                 )
         else:
