@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
 st.set_page_config(page_title="Hand 3D Pose Viewer", layout="centered")
-st.title("🖐️ MediaPipe Hands 3D Visualization")
+st.title(" MediaPipe Hands 3D Visualization")
 
 uploaded_file = st.file_uploader("🎥 Upload a video file (.mp4, .mov, .avi)", type=["mp4", "mov", "avi"])
 
@@ -60,27 +60,27 @@ if uploaded_file:
                 if not both_hands and label != hand_choice:
                     continue  # skip if not the selected hand
 
-                st.subheader(f"🖐️ Hand {idx+1} ({label})")
+                st.subheader(f"Hand {idx+1} ({label})")
                 coords = np.array([[lm.x, lm.y, lm.z] for lm in hand_landmarks.landmark])
                 df = pd.DataFrame(coords, columns=['x', 'y', 'z'])
 
                 # --- 3D Plot ---
                 fig = plt.figure(figsize=(6, 6))
                 ax = fig.add_subplot(111, projection='3d')
-                ax.scatter(df['x'], df['y'], df['z'], c='blue', s=50)
+                ax.scatter(df['x'], df['z'], df['y'], c='blue', s=50)
 
                 for connection in mp_hands.HAND_CONNECTIONS:
                     p1, p2 = connection
                     ax.plot(
                         [df.iloc[p1]['x'], df.iloc[p2]['x']],
-                        [df.iloc[p1]['y'], df.iloc[p2]['y']],
                         [df.iloc[p1]['z'], df.iloc[p2]['z']],
+                        [df.iloc[p1]['y'], df.iloc[p2]['y']],
                         'gray'
                     )
 
                 ax.set_xlabel("X")
-                ax.set_ylabel("Y")
-                ax.set_zlabel("Z")
+                ax.set_ylabel("Z")
+                ax.set_zlabel("Y")
                 ax.view_init(elev=10, azim=70)
                 st.pyplot(fig)
 
