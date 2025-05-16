@@ -19,10 +19,12 @@ st.title("MediaPipe Hands 3D Visualization")
 uploaded_file = st.file_uploader("🎥 Upload a video file (.mp4, .mov, .avi)", type=["mp4", "mov", "avi"])
 
 if uploaded_file:
+    # 動画保存
     tfile = tempfile.NamedTemporaryFile(delete=False)
     tfile.write(uploaded_file.read())
     video_path = tfile.name
 
+    # 動画情報取得
     cap = cv2.VideoCapture(video_path)
     frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     fps = cap.get(cv2.CAP_PROP_FPS)
@@ -33,6 +35,7 @@ if uploaded_file:
 
     frame_idx = st.slider("Select Frame", 0, frame_count - 1, 0)
 
+    # フレーム表示
     cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
     ret, frame = cap.read()
     if ret:
@@ -49,34 +52,36 @@ if uploaded_file:
         if results.multi_hand_landmarks:
             for idx, (hand_landmarks, handedness) in enumerate(zip(results.multi_hand_landmarks, results.multi_handedness)):
                 label = handedness.classification[0].label  # 'Left' or 'Right'
-                st.subheader(f"Hand {idx+1} ({label})")
 
+                st.subheader(f"Hand {idx + 1} ({label})")
+
+                # 座標抽出＆補正
                 coords = np.array([[lm.x, lm.y, lm.z] for lm in hand_landmarks.landmark])
+                coords[:, 0] = 1.0 - coords[:, 0]  # 左右反転（カメラ視点に合わせる）
+                coords[:, 1] = -coords[:, 1]      # 上下反転（OpenCVとの整合性）
                 df = pd.DataFrame(coords, columns=['x', 'y', 'z'])
 
-                # Flip x to match image display
-                df['x'] = 1.0 - df['x']
-
-                # --- 3D Plot ---
+                # 3D描画
                 fig = plt.figure(figsize=(6, 6))
                 ax = fig.add_subplot(111, projection='3d')
-                ax.scatter(df['x'], df['z'], -df['y'], c='blue', s=50)
+                ax.scatter(df['x'], df['z'], df['y'], c='blue', s=50)
 
                 for connection in mp_hands.HAND_CONNECTIONS:
                     p1, p2 = connection
                     ax.plot(
                         [df.iloc[p1]['x'], df.iloc[p2]['x']],
                         [df.iloc[p1]['z'], df.iloc[p2]['z']],
-                        [-df.iloc[p1]['y'], -df.iloc[p2]['y']],
+                        [df.iloc[p1]['y'], df.iloc[p2]['y']],
                         'gray'
                     )
 
-                ax.set_xlabel("X (Left→Right)")
+                ax.set_xlabel("X (Left–Right)")
                 ax.set_ylabel("Z (Depth)")
-                ax.set_zlabel("Y (Up↑)")
-                ax.view_init(elev=15, azim=70)
+                ax.set_zlabel("Y (Up–Down)")
+                ax.view_init(elev=10, azim=70)
                 st.pyplot(fig)
 
+                # CSV表示・ダウンロード
                 st.markdown("### ✍️ Coordinate Data")
                 st.dataframe(df)
                 csv = df.to_csv(index=False).encode("utf-8")
