@@ -49,11 +49,11 @@ if uploaded_file:
         if results.multi_hand_landmarks:
             for idx, (hand_landmarks, handedness) in enumerate(zip(results.multi_hand_landmarks, results.multi_handedness)):
                 mp_label = handedness.classification[0].label  # 'Left' or 'Right'
-                # Flip label to match user perspective (camera-facing)
-                user_label = "Right" if mp_label == "Left" else "Left"
+                user_label = "Right" if mp_label == "Left" else "Left"  # Flip for user view
 
                 st.subheader(f"Hand {idx+1} ({user_label})")
-                coords = np.array([[lm.x, lm.y, lm.z] for lm in hand_landmarks.landmark])
+
+                coords = np.array([[1 - lm.x, lm.y, lm.z] for lm in hand_landmarks.landmark])  # Flip x
                 df = pd.DataFrame(coords, columns=['x', 'y', 'z'])
 
                 # --- 3D Plot ---
