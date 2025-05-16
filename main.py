@@ -4,95 +4,76 @@ Created on Fri May 16 15:37:50 2025
 
 @author: ktrpt
 """
-
 import streamlit as st
 import cv2
 import tempfile
-import mediapipe as mp
 import numpy as np
+import mediapipe as mp
 import pandas as pd
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
-st.set_page_config(page_title="Hand 3D Pose Viewer", layout="centered")
-st.title("🖐️ MediaPipe Hands 3D Visualization")
+st.set_page_config(page_title="3D Hand Landmark Viewer", layout="wide")
+st.title("3D Hand Landmark Viewer with MediaPipe")
 
-uploaded_file = st.file_uploader("🎥 Upload a video file (.mp4, .mov, .avi)", type=["mp4", "mov", "avi"])
+# MediaPipe Hands 初期化
+mp_hands = mp.solutions.hands
+hands = mp_hands.Hands(static_image_mode=True,
+                       max_num_hands=2,
+                       model_complexity=1,
+                       min_detection_confidence=0.5)
 
+# 動画アップロード
+uploaded_file = st.file_uploader("動画ファイルをアップロード", type=["mp4", "mov", "avi"])
 if uploaded_file:
-    both_hands = st.checkbox("Enable both-hand detection", value=False)
-    hand_choice = "Right"
-    if not both_hands:
-        hand_choice = st.radio("Which hand to extract?", ["Right", "Left"], horizontal=True)
-
-    max_hands = 2 if both_hands else 1
-
     tfile = tempfile.NamedTemporaryFile(delete=False)
     tfile.write(uploaded_file.read())
     video_path = tfile.name
 
     cap = cv2.VideoCapture(video_path)
-    frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    fps = cap.get(cv2.CAP_PROP_FPS)
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    st.success(f"動画読み込み完了｜総フレーム数：{total_frames}")
 
-    st.markdown(f"📊 Total Frames: `{frame_count}` | FPS: `{fps:.2f}` | Size: `{width}x{height}`")
+    selected_frame = st.slider("表示するフレームを選択", 0, total_frames - 1, 0)
+    show_right = st.checkbox("右手を表示", value=True)
+    show_left = st.checkbox("左手を表示", value=True)
 
-    frame_idx = st.slider("Select Frame", 0, frame_count - 1, 0)
-
-    cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
+    # 指定フレーム取得
+    cap.set(cv2.CAP_PROP_POS_FRAMES, selected_frame)
     ret, frame = cap.read()
     if ret:
-        preview = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        st.image(preview, caption=f"Frame {frame_idx}", use_column_width=True)
+        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        results = hands.process(rgb)
+        st.image(rgb, caption=f"Frame {selected_frame}", use_container_width=True)
 
-    if st.button("Process this frame"):
-        mp_hands = mp.solutions.hands
-        hands = mp_hands.Hands(static_image_mode=True, max_num_hands=max_hands)
-        image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        results = hands.process(image_rgb)
-        hands.close()
+        # ランドマーク検出と3D描画
+        if results.multi_hand_landmarks and results.multi_handedness:
+            for idx, hand_landmarks in enumerate(results.multi_hand_landmarks):
+                handedness = results.multi_handedness[idx].classification[0].label
+                if (handedness == "Right" and not show_right) or (handedness == "Left" and not show_left):
+                    continue
 
-        if results.multi_hand_landmarks:
-            for idx, (hand_landmarks, handedness) in enumerate(zip(results.multi_hand_landmarks, results.multi_handedness)):
-                label = handedness.classification[0].label  # 'Left' or 'Right'
+                landmark_array = np.array([[lm.x, lm.y, lm.z] for lm in hand_landmarks.landmark])
 
-                if not both_hands and label != hand_choice:
-                    continue  # skip if not the selected hand
-
-                st.subheader(f"🖐️ Hand {idx+1} ({label})")
-                coords = np.array([[lm.x, lm.y, lm.z] for lm in hand_landmarks.landmark])
-                df = pd.DataFrame(coords, columns=['x', 'y', 'z'])
-
-                # --- 3D Plot ---
                 fig = plt.figure(figsize=(6, 6))
                 ax = fig.add_subplot(111, projection='3d')
-                ax.scatter(df['x'], df['y'], df['z'], c='blue', s=50)
-
-                for connection in mp_hands.HAND_CONNECTIONS:
-                    p1, p2 = connection
-                    ax.plot(
-                        [df.iloc[p1]['x'], df.iloc[p2]['x']],
-                        [df.iloc[p1]['y'], df.iloc[p2]['y']],
-                        [df.iloc[p1]['z'], df.iloc[p2]['z']],
-                        'gray'
-                    )
-
-                ax.set_xlabel("X")
-                ax.set_ylabel("Y")
-                ax.set_zlabel("Z")
-                ax.view_init(elev=10, azim=70)
+                ax.scatter(landmark_array[:, 0], landmark_array[:, 1], landmark_array[:, 2], c='crimson', s=40)
+                ax.set_xlabel("X (左右)")
+                ax.set_ylabel("Y (上下)")
+                ax.set_zlabel("Z (奥行)")
+                ax.view_init(elev=20, azim=-60)
+                ax.set_title(f"3D Hand - {handedness}")
                 st.pyplot(fig)
 
-                st.markdown("### ✍️ Coordinate Data")
-                st.dataframe(df)
+                # CSV 出力
+                df = pd.DataFrame(landmark_array, columns=["x", "y", "z"])
                 csv = df.to_csv(index=False).encode("utf-8")
                 st.download_button(
-                    label=f"Download CSV for {label} Hand",
+                    label=f"{handedness}download CSV",
                     data=csv,
-                    file_name=f"{label.lower()}_hand_frame_{frame_idx}.csv",
+                    file_name=f"{handedness}_hand_frame{selected_frame}.csv",
                     mime="text/csv"
                 )
-        else:
-            st.warning("No hand landmarks detected.")
+    else:
+        st.error("error")
+    cap.release()
