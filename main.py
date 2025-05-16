@@ -4,7 +4,6 @@ Created on Fri May 16 15:37:50 2025
 
 @author: ktrpt
 """
-
 import streamlit as st
 import cv2
 import tempfile
@@ -15,7 +14,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
 st.set_page_config(page_title="Hand 3D Pose Viewer", layout="centered")
-st.title(" MediaPipe Hands 3D Visualization")
+st.title("MediaPipe Hands 3D Visualization")
 
 uploaded_file = st.file_uploader("🎥 Upload a video file (.mp4, .mov, .avi)", type=["mp4", "mov", "avi"])
 
@@ -45,7 +44,7 @@ if uploaded_file:
     ret, frame = cap.read()
     if ret:
         preview = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        st.image(preview, caption=f"Frame {frame_idx}", use_column_width=True)
+        st.image(preview, caption=f"Frame {frame_idx}", use_container_width=True)
 
     if st.button("Process this frame"):
         mp_hands = mp.solutions.hands
@@ -56,10 +55,12 @@ if uploaded_file:
 
         if results.multi_hand_landmarks:
             for idx, (hand_landmarks, handedness) in enumerate(zip(results.multi_hand_landmarks, results.multi_handedness)):
-                label = handedness.classification[1].label  # 'Left' or 'Right'
+                raw_label = handedness.classification[0].label  # MediaPipe label
+                # Reverse label for user perspective
+                label = "Right" if raw_label == "Left" else "Left"
 
                 if not both_hands and label != hand_choice:
-                    continue  # skip if not the selected hand
+                    continue
 
                 st.subheader(f"Hand {idx+1} ({label})")
                 coords = np.array([[lm.x, lm.y, lm.z] for lm in hand_landmarks.landmark])
@@ -68,13 +69,13 @@ if uploaded_file:
                 # --- 3D Plot ---
                 fig = plt.figure(figsize=(6, 6))
                 ax = fig.add_subplot(111, projection='3d')
-                ax.scatter(-df['x'], -df['z'], df['y'], c='blue', s=50)
+                ax.scatter(df['x'], df['z'], df['y'], c='blue', s=50)
 
                 for connection in mp_hands.HAND_CONNECTIONS:
                     p1, p2 = connection
                     ax.plot(
-                        [-df.iloc[p1]['x'], -df.iloc[p2]['x']],
-                        [-df.iloc[p1]['z'], -df.iloc[p2]['z']],
+                        [df.iloc[p1]['x'], df.iloc[p2]['x']],
+                        [df.iloc[p1]['z'], df.iloc[p2]['z']],
                         [df.iloc[p1]['y'], df.iloc[p2]['y']],
                         'gray'
                     )
