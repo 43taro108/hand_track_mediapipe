@@ -19,12 +19,10 @@ st.title("MediaPipe Hands 3D Visualization")
 uploaded_file = st.file_uploader("🎥 Upload a video file (.mp4, .mov, .avi)", type=["mp4", "mov", "avi"])
 
 if uploaded_file:
-    # Save to temp file
     tfile = tempfile.NamedTemporaryFile(delete=False)
     tfile.write(uploaded_file.read())
     video_path = tfile.name
 
-    # Video metadata
     cap = cv2.VideoCapture(video_path)
     frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     fps = cap.get(cv2.CAP_PROP_FPS)
@@ -33,10 +31,8 @@ if uploaded_file:
 
     st.markdown(f"📊 Total Frames: `{frame_count}` | FPS: `{fps:.2f}` | Size: `{width}x{height}`")
 
-    # Frame selection
     frame_idx = st.slider("Select Frame", 0, frame_count - 1, 0)
 
-    # Preview selected frame
     cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
     ret, frame = cap.read()
     if ret:
@@ -53,18 +49,18 @@ if uploaded_file:
         if results.multi_hand_landmarks:
             for idx, (hand_landmarks, handedness) in enumerate(zip(results.multi_hand_landmarks, results.multi_handedness)):
                 label = handedness.classification[0].label  # 'Left' or 'Right'
-                corrected_label = "Right" if label == "Left" else "Left"  # Flip label for user-facing view
+
+                # MediaPipe の座標系で "Left" = 右手, "Right" = 左手になるので反転修正
+                corrected_label = "Right" if label == "Left" else "Left"
 
                 st.subheader(f"Hand {idx + 1} ({corrected_label})")
-
-                # Extract landmarks
                 coords = np.array([[lm.x, lm.y, lm.z] for lm in hand_landmarks.landmark])
                 df = pd.DataFrame(coords, columns=['x', 'y', 'z'])
 
-                # Flip Z for better visualization
+                # Z軸を反転して視覚的に自然な方向へ修正
                 df['z'] = -df['z']
 
-                # 3D plot
+                # --- 3D Plot ---
                 fig = plt.figure(figsize=(6, 6))
                 ax = fig.add_subplot(111, projection='3d')
                 ax.scatter(df['x'], df['z'], df['y'], c='blue', s=50)
@@ -81,10 +77,9 @@ if uploaded_file:
                 ax.set_xlabel("X")
                 ax.set_ylabel("Z (Depth)")
                 ax.set_zlabel("Y")
-                ax.view_init(elev=10, azim=70)
+                ax.view_init(elev=10, azim=70)  # やや俯瞰した視点
                 st.pyplot(fig)
 
-                # CSV download
                 st.markdown("### ✍️ Coordinate Data")
                 st.dataframe(df)
                 csv = df.to_csv(index=False).encode("utf-8")
