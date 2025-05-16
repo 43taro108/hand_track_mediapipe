@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+ｚ# -*- coding: utf-8 -*-
 """
 Created on Fri May 16 15:37:50 2025
 
@@ -29,7 +29,7 @@ if uploaded_file:
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
-    st.markdown(f"📊 Total Frames: `{frame_count}` | FPS: `{fps:.2f}` | Size: `{width}x{height}`")
+    st.markdown(f"📊 Total Frames: {frame_count} | FPS: {fps:.2f} | Size: {width}x{height}")
 
     frame_idx = st.slider("Select Frame", 0, frame_count - 1, 0)
 
@@ -50,15 +50,17 @@ if uploaded_file:
             for idx, (hand_landmarks, handedness) in enumerate(zip(results.multi_hand_landmarks, results.multi_handedness)):
                 label = handedness.classification[0].label  # 'Left' or 'Right'
 
-                # MediaPipe の座標系で "Left" = 右手, "Right" = 左手になるので反転修正
+                # MediaPipe のラベル補正: "Left"は右手, "Right"は左手
                 corrected_label = "Right" if label == "Left" else "Left"
 
                 st.subheader(f"Hand {idx + 1} ({corrected_label})")
+
+                # 座標抽出と補正（X: 左右, Y: 上下, Z: 奥行）
                 coords = np.array([[lm.x, lm.y, lm.z] for lm in hand_landmarks.landmark])
                 df = pd.DataFrame(coords, columns=['x', 'y', 'z'])
-
-                # Z軸を反転して視覚的に自然な方向へ修正
-                df['z'] = -df['z']
+                df['x'] = 1.0 - df['x']  # 左右反転（映像との整合性）
+                df['y'] = 1.0 - df['y']  # 上下反転
+                df['z'] = -df['z']       # 奥行き反転
 
                 # --- 3D Plot ---
                 fig = plt.figure(figsize=(6, 6))
@@ -74,10 +76,10 @@ if uploaded_file:
                         'gray'
                     )
 
-                ax.set_xlabel("X")
-                ax.set_ylabel("Z (Depth)")
-                ax.set_zlabel("Y")
-                ax.view_init(elev=10, azim=70)  # やや俯瞰した視点
+                ax.set_xlabel("X (left-right)")
+                ax.set_ylabel("Z (depth)")
+                ax.set_zlabel("Y (up-down)")
+                ax.view_init(elev=10, azim=70)  # 俯瞰視点
                 st.pyplot(fig)
 
                 st.markdown("### ✍️ Coordinate Data")
