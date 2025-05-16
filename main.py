@@ -4,6 +4,7 @@ Created on Fri May 16 15:37:50 2025
 
 @author: ktrpt
 """
+
 import streamlit as st
 import cv2
 import tempfile
@@ -55,7 +56,7 @@ if uploaded_file:
 
         if results.multi_hand_landmarks:
             for idx, (hand_landmarks, handedness) in enumerate(zip(results.multi_hand_landmarks, results.multi_handedness)):
-                label = handedness.classification[0].label  # 'Left' or 'Right'
+                label = handedness.classification[1].label  # 'Left' or 'Right'
 
                 if not both_hands and label != hand_choice:
                     continue  # skip if not the selected hand
