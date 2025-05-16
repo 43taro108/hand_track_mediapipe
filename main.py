@@ -48,41 +48,42 @@ if uploaded_file:
 
         if results.multi_hand_landmarks:
             for idx, (hand_landmarks, handedness) in enumerate(zip(results.multi_hand_landmarks, results.multi_handedness)):
-                mp_label = handedness.classification[0].label  # 'Left' or 'Right'
-                user_label = "Right" if mp_label == "Left" else "Left"  # Flip for user view
+                label = handedness.classification[0].label  # 'Left' or 'Right'
+                st.subheader(f"Hand {idx+1} ({label})")
 
-                st.subheader(f"Hand {idx+1} ({user_label})")
-
-                coords = np.array([[1 - lm.x, lm.y, lm.z] for lm in hand_landmarks.landmark])  # Flip x
+                coords = np.array([[lm.x, lm.y, lm.z] for lm in hand_landmarks.landmark])
                 df = pd.DataFrame(coords, columns=['x', 'y', 'z'])
+
+                # Flip x to match image display
+                df['x'] = 1.0 - df['x']
 
                 # --- 3D Plot ---
                 fig = plt.figure(figsize=(6, 6))
                 ax = fig.add_subplot(111, projection='3d')
-                ax.scatter(df['x'], df['z'], df['y'], c='blue', s=50)
+                ax.scatter(df['x'], df['z'], -df['y'], c='blue', s=50)
 
                 for connection in mp_hands.HAND_CONNECTIONS:
                     p1, p2 = connection
                     ax.plot(
                         [df.iloc[p1]['x'], df.iloc[p2]['x']],
                         [df.iloc[p1]['z'], df.iloc[p2]['z']],
-                        [df.iloc[p1]['y'], df.iloc[p2]['y']],
+                        [-df.iloc[p1]['y'], -df.iloc[p2]['y']],
                         'gray'
                     )
 
-                ax.set_xlabel("X")
-                ax.set_ylabel("Z")
-                ax.set_zlabel("Y")
-                ax.view_init(elev=10, azim=70)
+                ax.set_xlabel("X (Left→Right)")
+                ax.set_ylabel("Z (Depth)")
+                ax.set_zlabel("Y (Up↑)")
+                ax.view_init(elev=15, azim=70)
                 st.pyplot(fig)
 
                 st.markdown("### ✍️ Coordinate Data")
                 st.dataframe(df)
                 csv = df.to_csv(index=False).encode("utf-8")
                 st.download_button(
-                    label=f"Download CSV for {user_label} Hand",
+                    label=f"Download CSV for {label} Hand",
                     data=csv,
-                    file_name=f"{user_label.lower()}_hand_frame_{frame_idx}.csv",
+                    file_name=f"{label.lower()}_hand_frame_{frame_idx}.csv",
                     mime="text/csv"
                 )
         else:
