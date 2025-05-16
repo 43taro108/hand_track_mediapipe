@@ -67,13 +67,13 @@ if uploaded_file:
                 # --- 3D Plot ---
                 fig = plt.figure(figsize=(6, 6))
                 ax = fig.add_subplot(111, projection='3d')
-                ax.scatter(df['x'], df['z'], df['y'], c='blue', s=50)
+                ax.scatter(-df['x'], -df['z'], df['y'], c='blue', s=50)
 
                 for connection in mp_hands.HAND_CONNECTIONS:
                     p1, p2 = connection
                     ax.plot(
-                        [df.iloc[p1]['x'], df.iloc[p2]['x']],
-                        [df.iloc[p1]['z'], df.iloc[p2]['z']],
+                        [-df.iloc[p1]['x'], -df.iloc[p2]['x']],
+                        [-df.iloc[p1]['z'], -df.iloc[p2]['z']],
                         [df.iloc[p1]['y'], df.iloc[p2]['y']],
                         'gray'
                     )
