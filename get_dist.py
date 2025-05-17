@@ -9,63 +9,65 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
-import mediapipe as mp
+from io import BytesIO
 
-st.set_page_config(page_title="3D Hand Viewer", layout="centered")
-st.title("🖐️ MediaPipe Hand Skeleton + Thumb-Index Distance")
+st.set_page_config(page_title="Hand Distance Analyzer", layout="centered")
+st.title("🖐️ 3D Hand Pose & Thumb-Index Distance")
 
-uploaded_file = st.file_uploader("📄 Upload a single-frame CSV (21 landmarks)", type=["csv"])
+uploaded_file = st.file_uploader("📄 Upload a CSV with 3D landmarks (x, y, z)", type="csv")
 
-if uploaded_file:
+if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
+    st.write("Preview of uploaded data:")
+    st.dataframe(df.head())
 
-    if df.shape[0] != 21 or not all(col in df.columns for col in ['x', 'y', 'z']):
-        st.error("❌ Invalid CSV. Must have 21 rows and x/y/z columns.")
+    if all(col in df.columns for col in ['x', 'y', 'z']):
+        coords = df[['x', 'y', 'z']].values.reshape(-1, 3)
+        if coords.shape[0] != 21:
+            st.error("Expected 21 landmarks (MediaPipe format).")
+        else:
+            thumb_tip = coords[4]
+            index_tip = coords[8]
+            distance = np.linalg.norm(thumb_tip - index_tip)
+            st.markdown(f"### 📏 Distance: `{distance:.3f}` units")
+
+            fig = plt.figure(figsize=(6, 6))
+            ax = fig.add_subplot(111, projection='3d')
+
+            xs, ys, zs = coords[:, 0], -coords[:, 1], -coords[:, 2]
+            ax.scatter(xs, zs, ys, c='blue', s=40)
+
+            HAND_CONNECTIONS = [
+                (0,1),(1,2),(2,3),(3,4),
+                (0,5),(5,6),(6,7),(7,8),
+                (0,9),(9,10),(10,11),(11,12),
+                (0,13),(13,14),(14,15),(15,16),
+                (0,17),(17,18),(18,19),(19,20)
+            ]
+            for p1, p2 in HAND_CONNECTIONS:
+                ax.plot([xs[p1], xs[p2]], [zs[p1], zs[p2]], [ys[p1], ys[p2]], 'gray')
+
+            ax.quiver(
+                thumb_tip[0], -thumb_tip[2], -thumb_tip[1],
+                index_tip[0] - thumb_tip[0],
+                -(index_tip[2] - thumb_tip[2]),
+                -(index_tip[1] - thumb_tip[1]),
+                color='red', linewidth=2
+            )
+
+            ax.set_xlabel("X")
+            ax.set_ylabel("Z (Depth)")
+            ax.set_zlabel("Y")
+            ax.view_init(elev=10, azim=70)
+            st.pyplot(fig)
+
+            buf = BytesIO()
+            fig.savefig(buf, format="png")
+            st.download_button(
+                "⬇️ Download Plot (PNG)",
+                data=buf.getvalue(),
+                file_name="hand_pose.png",
+                mime="image/png"
+            )
     else:
-        thumb = df.iloc[4][['x', 'y', 'z']].astype(float).values
-        index = df.iloc[8][['x', 'y', 'z']].astype(float).values
-        distance = np.linalg.norm(thumb - index)
-        st.success(f"📏 3D Distance (Thumb ↔ Index): **{distance:.4f} units**")
-
-        fig = plt.figure(figsize=(7, 7))
-        ax = fig.add_subplot(111, projection='3d')
-        ax.set_title("3D Hand Landmarks with Skeleton & Distance Vector", pad=20)
-
-        # 座標反転：MediaPipe座標系 → 直感的表示（上下・奥行き反転）
-        df['y'] = -df['y']
-        df['z'] = -df['z']
-
-        # ランドマーク点
-        ax.scatter(df['x'], df['z'], df['y'], color='blue', s=50, label='Landmarks')
-
-        # 骨格線
-        mp_hands = mp.solutions.hands
-        for connection in mp_hands.HAND_CONNECTIONS:
-            p1, p2 = connection
-            x = [df.iloc[p1]['x'], df.iloc[p2]['x']]
-            y = [df.iloc[p1]['z'], df.iloc[p2]['z']]
-            z = [df.iloc[p1]['y'], df.iloc[p2]['y']]
-            ax.plot(x, y, z, color='gray', linewidth=2)
-
-        # 親指→人差し指の距離ベクトル
-        ax.quiver(
-            thumb[0], -thumb[2], -thumb[1],
-            index[0] - thumb[0],
-            -(index[2] - thumb[2]),
-            -(index[1] - thumb[1]),
-            color='red', arrow_length_ratio=0.1, linewidth=2
-        )
-        ax.text(thumb[0], -thumb[2], -thumb[1], "Thumb", color='red')
-        ax.text(index[0], -index[2], -index[1], "Index", color='green')
-
-        ax.set_xlabel("X")
-        ax.set_ylabel("Z (Depth)")
-        ax.set_zlabel("Y (Up)")
-        ax.view_init(elev=20, azim=60)
-        st.pyplot(fig)
-
-        st.markdown("### 🧮 Coordinates")
-        st.dataframe(df)
-
-        csv = df.to_csv(index=False).encode("utf-8")
-        st.download_button("📥 Download CSV", data=csv, file_name="hand_landmarks.csv", mime="text/csv")
+        st.error("The CSV must include columns: x, y, z.")
